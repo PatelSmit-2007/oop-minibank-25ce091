@@ -17,42 +17,27 @@ public class MiniBank {
 
     public static void main(String[] args) {
 
-        Scanner sc = new Scanner(System.in);
+        Account[] accounts = {
+                new Account("Smit", 5000),
+                new Account("Rahul", 3000),
+                new Account("Amit")
+        };
 
-        // Application header
-        BankInfo bank = new BankInfo("MiniBank", "Main Branch");
-        System.out.println("================================");
-        System.out.println(bank);
-        System.out.println("================================");
+        accounts[0].deposit(2000);
+        accounts[0].withdraw(1000);
 
-        int choice;
+        accounts[1].deposit(1500);
+        accounts[1].withdraw(500);
 
-        do {
-            System.out.println("\n----- MiniBank Menu -----");
-            System.out.println("1. Open Account");
-            System.out.println("2. Deposit");
-            System.out.println("3. Withdraw");
-            System.out.println("4. Transfer");
-            System.out.println("5. Exit");
-            System.out.print("Enter your choice: ");
+        accounts[2].deposit(4000);
+        accounts[2].withdraw(1000);
 
-            choice = sc.nextInt();
-
-            String message = switch (choice) {
-                case 1 -> "Open Account — to be implemented in a later lab";
-                case 2 -> "Deposit — to be implemented in a later lab";
-                case 3 -> "Withdraw — to be implemented in a later lab";
-                case 4 -> "Transfer — to be implemented in a later lab";
-                case 5 -> "Exiting MiniBank...";
-                default -> "Invalid choice. Please try again.";
-            };
-
-            System.out.println(message);
-
-        } while (choice != 5);
-
-        System.out.println("Thank you for using MiniBank. Goodbye!");
-
-        sc.close();
+        for (Account account : accounts) {
+            System.out.println(
+                    account.getAccountNumber() +
+                            " | " + account.getOwnerName() +
+                            " | Balance: ₹" + account.getBalance()
+            );
+        }
     }
 }
