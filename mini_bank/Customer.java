@@ -1,11 +1,12 @@
 package project.mini_bank;
 
-public class Customer {
+public class Customer implements Cloneable {
 
     private String name;
     private String email;
     private String mobile;
     private final String customerId;
+    private Address address;
 
     private static long customerCounter = 100;
 
@@ -19,6 +20,49 @@ public class Customer {
         this.email = email;
         this.mobile = mobile;
         this.customerId = generateCustomerId();
+    }
+
+    // Public static nested class
+    public static class Address {
+        private String line;
+        private String city;
+        private String pincode;
+
+        public Address(String line, String city, String pincode) {
+            this.line = line;
+            this.city = city;
+            this.pincode = pincode;
+        }
+
+        public String getLine() {
+            return line;
+        }
+
+        public String getCity() {
+            return city;
+        }
+
+        public String getPincode() {
+            return pincode;
+        }
+    }
+
+    public Address getAddress() {
+        return address;
+    }
+
+    public void setAddress(Address address) {
+        this.address = address;
+    }
+
+    // Clone the customer object
+    @Override
+    public Customer clone() {
+        try {
+            return (Customer) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError(e);
+        }
     }
 
     public String getName() {
