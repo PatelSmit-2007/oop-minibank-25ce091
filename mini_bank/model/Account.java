@@ -1,6 +1,6 @@
-package project.mini_bank;
+package project.mini_bank.model;
 
-public abstract class Account {
+public abstract class Account implements Transactable, InterestBearing {
 
     private final String accountNumber;
     private String ownerName;
@@ -25,12 +25,14 @@ public abstract class Account {
         this(ownerName, 0);
     }
 
+    @Override
     public void deposit(long amount) {
         if (amount > 0) {
             balance += amount;
         }
     }
 
+    @Override
     public boolean withdraw(long amount) {
         if (amount > 0 && canWithdraw(amount)) {
             balance -= amount;
@@ -40,6 +42,7 @@ public abstract class Account {
     }
 
     // Abstract methods: subclasses must implement these
+    @Override
     public abstract double interestRate();
 
     public abstract boolean canWithdraw(long amount);
@@ -52,6 +55,7 @@ public abstract class Account {
         return ownerName;
     }
 
+    @Override
     public long getBalance() {
         return balance;
     }

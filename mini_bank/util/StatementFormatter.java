@@ -1,4 +1,6 @@
-package project.mini_bank;
+package project.mini_bank.util;
+
+import project.mini_bank.model.Account;
 
 public class StatementFormatter {
 

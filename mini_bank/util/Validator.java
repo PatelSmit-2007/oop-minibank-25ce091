@@ -1,4 +1,4 @@
-package project.mini_bank;
+package project.mini_bank.util;
 
 import java.util.regex.Pattern;
 

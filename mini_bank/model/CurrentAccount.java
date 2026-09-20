@@ -1,4 +1,4 @@
-package project.mini_bank;
+package project.mini_bank.model;
 
 public class CurrentAccount extends Account {
 

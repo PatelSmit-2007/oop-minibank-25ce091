@@ -1,6 +1,8 @@
-package project.mini_bank;
+package project.mini_bank.util;
 
 import java.util.Locale;
+import project.mini_bank.model.Command;
+import project.mini_bank.model.TransactionType;
 
 public class CommandParser {
 
