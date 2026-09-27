@@ -1,10 +1,20 @@
 package project.mini_bank.model;
 
+import project.mini_bank.model.annotation.Id;
+import project.mini_bank.model.annotation.MaxLength;
+import project.mini_bank.model.annotation.Positive;
+
 public abstract class Account implements Transactable, InterestBearing {
 
+    @Id
     private final String accountNumber;
+
+    @MaxLength(30)
     private String ownerName;
+
+    @Positive
     private long balance;
+
     private boolean active;
 
     private static long accountCounter = 0;

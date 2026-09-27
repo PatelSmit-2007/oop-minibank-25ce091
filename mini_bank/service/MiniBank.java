@@ -5,6 +5,7 @@ import project.mini_bank.model.CurrentAccount;
 import project.mini_bank.model.FixedDepositAccount;
 import project.mini_bank.model.Premium;
 import project.mini_bank.model.SavingsAccount;
+import project.mini_bank.util.AnnotationValidator;
 
 import static project.mini_bank.util.StatementFormatter.buildStatement;
 
@@ -83,5 +84,21 @@ public class MiniBank {
         System.out.println("\n=== GENERATING STATEMENT (STATIC IMPORT) ===");
         // Uses static import buildStatement from StatementFormatter
         System.out.println(buildStatement(accounts[0]));
+
+        System.out.println("\n=== ANNOTATION VALIDATION (REFLECTION) ===");
+        // Create an Account with a negative balance and exceeding name length to test reflection validator
+        Account invalidAccount = new SavingsAccount("InvalidAccountHolderNameExceedingLimit", -500, 1000);
+        System.out.println("Validating account with negative balance and long name ("
+                + invalidAccount.getAccountNumber() + "):");
+
+        String[] errors = AnnotationValidator.validate(invalidAccount);
+        if (errors.length > 0) {
+            System.out.println("Validation failed with " + errors.length + " error(s):");
+            for (String error : errors) {
+                System.out.println(" - " + error);
+            }
+        } else {
+            System.out.println("All validations passed.");
+        }
     }
 }
