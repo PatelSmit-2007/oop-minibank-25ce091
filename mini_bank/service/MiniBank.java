@@ -1,11 +1,16 @@
 package project.mini_bank.service;
 
+import project.mini_bank.exception.AccountNotFoundException;
+import project.mini_bank.exception.BankException;
+import project.mini_bank.exception.InsufficientFundsException;
+import project.mini_bank.exception.InvalidAmountException;
 import project.mini_bank.model.Account;
 import project.mini_bank.model.CurrentAccount;
 import project.mini_bank.model.FixedDepositAccount;
 import project.mini_bank.model.Premium;
 import project.mini_bank.model.SavingsAccount;
 import project.mini_bank.util.AnnotationValidator;
+import project.mini_bank.util.TransactionSession;
 
 import static project.mini_bank.util.StatementFormatter.buildStatement;
 
@@ -39,15 +44,12 @@ public class MiniBank {
         for (Account account : accounts) {
             System.out.println(account);
             System.out.println("Interest Rate   : " + account.interestRate() + "%");
-            // Calls default method from InterestBearing interface
             System.out.println("Yearly Interest : ₹" + account.yearlyInterest());
 
-            // Pattern matching with instanceof
             if (account instanceof SavingsAccount savings) {
                 System.out.println("Minimum Balance : ₹" + savings.getMinBalance());
             }
 
-            // Marker interface check
             if (account instanceof Premium) {
                 System.out.println("Tier            : Premium Account");
             }
@@ -57,7 +59,6 @@ public class MiniBank {
 
         System.out.println("=== WITHDRAWAL RULES EVALUATION ===");
 
-        // 1. WithdrawRule using an Anonymous Class
         WithdrawRule limitRuleAnonymous = new WithdrawRule() {
             @Override
             public boolean allow(Account account, long amount) {
@@ -66,7 +67,6 @@ public class MiniBank {
             }
         };
 
-        // 2. WithdrawRule using a Lambda Expression
         WithdrawRule basicRuleLambda = (account, amount) -> account.canWithdraw(amount);
 
         long testAmount = 4000;
@@ -76,17 +76,80 @@ public class MiniBank {
         System.out.println("Lambda expression rule (Standard) allow? "
                 + basicRuleLambda.allow(accounts[0], testAmount));
 
-        System.out.println("\n=== EXECUTING WITHDRAWALS ===");
-        System.out.println("Savings withdraw ₹4000: " + accounts[0].withdraw(4000));
-        System.out.println("Current withdraw ₹4000: " + accounts[1].withdraw(4000));
-        System.out.println("Fixed Deposit withdraw ₹1000: " + accounts[2].withdraw(1000));
+        System.out.println("\n=== FAULT-TOLERANT OPERATIONS (TRY-CATCH, FINALLY & TRY-WITH-RESOURCES) ===");
+
+        // Requirement 4: Try-with-resources using custom AutoCloseable TransactionSession
+        try (TransactionSession session = new TransactionSession("TXN-2026-001")) {
+
+            // 1. Successful withdrawal
+            try {
+                System.out.println("\nAttempting ₹2000 withdrawal from Savings...");
+                accounts[0].withdraw(2000);
+                System.out.println("Success! New Balance: ₹" + accounts[0].getBalance());
+            } catch (InsufficientFundsException e) {
+                System.err.println("Failed: " + e.getMessage() + " [Shortfall: ₹" + e.getShortfall() + "]");
+            } catch (InvalidAmountException e) {
+                System.err.println("Invalid Amount: " + e.getMessage());
+            } finally {
+                System.out.println("Operation 1 completed.");
+            }
+
+            // 2. Withdrawal with Insufficient Funds (checking shortfall)
+            try {
+                System.out.println("\nAttempting ₹5000 withdrawal from Savings (balance ₹3000, min ₹1000)...");
+                accounts[0].withdraw(5000);
+            } catch (InsufficientFundsException e) {
+                System.out.println("Caught Expected Error: " + e.getMessage());
+                System.out.println("Shortfall Amount   : ₹" + e.getShortfall());
+            } catch (InvalidAmountException e) {
+                System.err.println("Invalid Amount: " + e.getMessage());
+            } finally {
+                System.out.println("Operation 2 completed.");
+            }
+
+            // 3. Deposit with Invalid Amount (non-positive)
+            try {
+                System.out.println("\nAttempting invalid deposit of ₹-200...");
+                accounts[0].deposit(-200);
+            } catch (InvalidAmountException e) {
+                System.out.println("Caught Expected Error: " + e.getMessage());
+            } finally {
+                System.out.println("Operation 3 completed.");
+            }
+
+            // 4. Successful Transfer
+            try {
+                System.out.println("\nTransferring ₹1000 from Smit to Rahul...");
+                accounts[0].transfer(accounts[1], 1000);
+                System.out.println("Transfer successful!");
+                System.out.println("Smit Balance : ₹" + accounts[0].getBalance());
+                System.out.println("Rahul Balance: ₹" + accounts[1].getBalance());
+            } catch (BankException e) {
+                System.err.println("Transfer Failed: " + e.getMessage());
+            } finally {
+                System.out.println("Operation 4 completed.");
+            }
+
+            // 5. Transfer to non-existent (null) account
+            try {
+                System.out.println("\nTransferring ₹500 to null destination...");
+                accounts[0].transfer(null, 500);
+            } catch (AccountNotFoundException e) {
+                System.out.println("Caught Expected Error: " + e.getMessage());
+            } catch (BankException e) {
+                System.err.println("Bank Error: " + e.getMessage());
+            } finally {
+                System.out.println("Operation 5 completed.");
+            }
+
+        } catch (Exception e) {
+            System.err.println("Session error: " + e.getMessage());
+        }
 
         System.out.println("\n=== GENERATING STATEMENT (STATIC IMPORT) ===");
-        // Uses static import buildStatement from StatementFormatter
         System.out.println(buildStatement(accounts[0]));
 
         System.out.println("\n=== ANNOTATION VALIDATION (REFLECTION) ===");
-        // Create an Account with a negative balance and exceeding name length to test reflection validator
         Account invalidAccount = new SavingsAccount("InvalidAccountHolderNameExceedingLimit", -500, 1000);
         System.out.println("Validating account with negative balance and long name ("
                 + invalidAccount.getAccountNumber() + "):");

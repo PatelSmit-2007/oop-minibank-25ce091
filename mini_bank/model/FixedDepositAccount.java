@@ -18,4 +18,9 @@ public class FixedDepositAccount extends Account {
     public boolean canWithdraw(long amount) {
         return false;
     }
+
+    @Override
+    public long calculateShortfall(long amount) {
+        return amount;
+    }
 }

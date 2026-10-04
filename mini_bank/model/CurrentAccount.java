@@ -24,6 +24,12 @@ public class CurrentAccount extends Account {
                 && getBalance() - amount >= -overdraftLimit;
     }
 
+    @Override
+    public long calculateShortfall(long amount) {
+        long maxAvailable = getBalance() + overdraftLimit;
+        return amount > maxAvailable ? amount - maxAvailable : 0;
+    }
+
     public long getOverdraftLimit() {
         return overdraftLimit;
     }

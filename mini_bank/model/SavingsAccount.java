@@ -24,6 +24,12 @@ public class SavingsAccount extends Account implements Premium {
                 && getBalance() - amount >= minBalance;
     }
 
+    @Override
+    public long calculateShortfall(long amount) {
+        long required = amount + minBalance;
+        return required > getBalance() ? required - getBalance() : 0;
+    }
+
     public long getMinBalance() {
         return minBalance;
     }

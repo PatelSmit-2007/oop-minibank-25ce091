@@ -1,5 +1,9 @@
 package project.mini_bank.model;
 
+import project.mini_bank.exception.AccountNotFoundException;
+import project.mini_bank.exception.BankException;
+import project.mini_bank.exception.InsufficientFundsException;
+import project.mini_bank.exception.InvalidAmountException;
 import project.mini_bank.model.annotation.Id;
 import project.mini_bank.model.annotation.MaxLength;
 import project.mini_bank.model.annotation.Positive;
@@ -36,19 +40,58 @@ public abstract class Account implements Transactable, InterestBearing {
     }
 
     @Override
-    public void deposit(long amount) {
-        if (amount > 0) {
-            balance += amount;
+    public void deposit(long amount) throws InvalidAmountException {
+        if (amount <= 0) {
+            throw new InvalidAmountException("Deposit amount must be > 0. Provided: ₹" + amount);
         }
+        balance += amount;
     }
 
     @Override
-    public boolean withdraw(long amount) {
-        if (amount > 0 && canWithdraw(amount)) {
-            balance -= amount;
-            return true;
+    public boolean withdraw(long amount) throws InsufficientFundsException, InvalidAmountException {
+        if (amount <= 0) {
+            throw new InvalidAmountException("Withdrawal amount must be > 0. Provided: ₹" + amount);
         }
-        return false;
+        if (!canWithdraw(amount)) {
+            long shortfall = calculateShortfall(amount);
+            throw new InsufficientFundsException(
+                    "Insufficient funds for withdrawal of ₹" + amount + ". Shortfall: ₹" + shortfall,
+                    shortfall
+            );
+        }
+        balance -= amount;
+        return true;
+    }
+
+    public long calculateShortfall(long amount) {
+        return amount > balance ? amount - balance : 0;
+    }
+
+    public void transfer(Account to, long amount) throws BankException {
+        if (to == null) {
+            throw new AccountNotFoundException("Transfer failed: destination account not found.");
+        }
+        if (to.equals(this)) {
+            throw new BankException("Transfer failed: cannot transfer to the same account.");
+        }
+
+        boolean debited = false;
+        try {
+            this.withdraw(amount);
+            debited = true;
+            to.deposit(amount);
+        } catch (BankException e) {
+            if (debited) {
+                try {
+                    this.deposit(amount); // Rollback debit
+                } catch (InvalidAmountException rollbackEx) {
+                    // Suppressed rollback exception
+                }
+            }
+            throw e; // re-throw BankException
+        } finally {
+            // Transaction cleanup / completion hook
+        }
     }
 
     // Abstract methods: subclasses must implement these
