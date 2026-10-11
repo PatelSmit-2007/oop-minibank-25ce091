@@ -78,7 +78,6 @@ public class MiniBank {
 
         System.out.println("\n=== FAULT-TOLERANT OPERATIONS (TRY-CATCH, FINALLY & TRY-WITH-RESOURCES) ===");
 
-        // Requirement 4: Try-with-resources using custom AutoCloseable TransactionSession
         try (TransactionSession session = new TransactionSession("TXN-2026-001")) {
 
             // 1. Successful withdrawal
@@ -144,6 +143,50 @@ public class MiniBank {
 
         } catch (Exception e) {
             System.err.println("Session error: " + e.getMessage());
+        }
+
+        System.out.println("\n=== MULTITHREADING & SYNCHRONIZATION DEMO ===");
+        // Requirement 1-4: Run 10 threads against one account with AccountWorker and observe synchronization
+        Account concurrentAccount = new SavingsAccount("Concurrent User", 1000, 500);
+        int numThreads = 10;
+        int depositsPerThread = 500;
+        long depositAmount = 10;
+        long expectedBalance = 1000 + ((long) numThreads * depositsPerThread * depositAmount);
+
+        System.out.println("Shared Account Initial Balance : ₹" + concurrentAccount.getBalance());
+        System.out.println("Expected Final Balance         : ₹" + expectedBalance + " ("
+                + numThreads + " threads x " + depositsPerThread + " deposits of ₹" + depositAmount + ")");
+
+        Thread[] workers = new Thread[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            workers[i] = new Thread(
+                    new AccountWorker(concurrentAccount, depositsPerThread, depositAmount),
+                    "Worker-Thread-" + (i + 1)
+            );
+            System.out.println("Main: Created thread [" + workers[i].getName() + "] in NEW state.");
+        }
+
+        System.out.println("\nMain: Starting all worker threads...");
+        for (Thread worker : workers) {
+            worker.start();
+        }
+
+        System.out.println("Main: Waiting for threads to finish with join()...");
+        for (Thread worker : workers) {
+            try {
+                worker.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.err.println("Thread interrupted: " + e.getMessage());
+            }
+        }
+
+        System.out.println("Main: All worker threads completed.");
+        System.out.println("Actual Final Balance           : ₹" + concurrentAccount.getBalance());
+        if (concurrentAccount.getBalance() == expectedBalance) {
+            System.out.println("Result: SUCCESS - Thread-safe synchronization prevented race conditions!");
+        } else {
+            System.out.println("Result: RACE CONDITION DETECTED! Balance mismatch.");
         }
 
         System.out.println("\n=== GENERATING STATEMENT (STATIC IMPORT) ===");
