@@ -32,7 +32,6 @@ public class MiniBank {
         BankInfo info = new BankInfo("Mini Bank", "Main Branch");
         System.out.println("=== " + info.name() + " (" + info.branch() + ") ===");
 
-        // Store different account types using one common parent type
         Account[] accounts = {
                 new SavingsAccount("Smit", 5000, 1000),
                 new CurrentAccount("Rahul", 2000, 3000),
@@ -80,7 +79,6 @@ public class MiniBank {
 
         try (TransactionSession session = new TransactionSession("TXN-2026-001")) {
 
-            // 1. Successful withdrawal
             try {
                 System.out.println("\nAttempting ₹2000 withdrawal from Savings...");
                 accounts[0].withdraw(2000);
@@ -93,7 +91,6 @@ public class MiniBank {
                 System.out.println("Operation 1 completed.");
             }
 
-            // 2. Withdrawal with Insufficient Funds (checking shortfall)
             try {
                 System.out.println("\nAttempting ₹5000 withdrawal from Savings (balance ₹3000, min ₹1000)...");
                 accounts[0].withdraw(5000);
@@ -106,7 +103,6 @@ public class MiniBank {
                 System.out.println("Operation 2 completed.");
             }
 
-            // 3. Deposit with Invalid Amount (non-positive)
             try {
                 System.out.println("\nAttempting invalid deposit of ₹-200...");
                 accounts[0].deposit(-200);
@@ -116,7 +112,6 @@ public class MiniBank {
                 System.out.println("Operation 3 completed.");
             }
 
-            // 4. Successful Transfer
             try {
                 System.out.println("\nTransferring ₹1000 from Smit to Rahul...");
                 accounts[0].transfer(accounts[1], 1000);
@@ -129,7 +124,6 @@ public class MiniBank {
                 System.out.println("Operation 4 completed.");
             }
 
-            // 5. Transfer to non-existent (null) account
             try {
                 System.out.println("\nTransferring ₹500 to null destination...");
                 accounts[0].transfer(null, 500);
@@ -145,49 +139,120 @@ public class MiniBank {
             System.err.println("Session error: " + e.getMessage());
         }
 
-        System.out.println("\n=== MULTITHREADING & SYNCHRONIZATION DEMO ===");
-        // Requirement 1-4: Run 10 threads against one account with AccountWorker and observe synchronization
-        Account concurrentAccount = new SavingsAccount("Concurrent User", 1000, 500);
-        int numThreads = 10;
-        int depositsPerThread = 500;
-        long depositAmount = 10;
-        long expectedBalance = 1000 + ((long) numThreads * depositsPerThread * depositAmount);
+        System.out.println("\n=== BATCH TRANSACTION PROCESSING (THREAD POOL) ===");
+        // Requirement 1 & 2: Process batch of transactions with TransactionProcessor (FixedThreadPool(4))
+        TransactionProcessor processor = new TransactionProcessor();
+        Account poolAccount = new SavingsAccount("Pool User", 5000, 1000);
+        System.out.println("Pool Account Initial Balance: ₹" + poolAccount.getBalance());
 
-        System.out.println("Shared Account Initial Balance : ₹" + concurrentAccount.getBalance());
-        System.out.println("Expected Final Balance         : ₹" + expectedBalance + " ("
-                + numThreads + " threads x " + depositsPerThread + " deposits of ₹" + depositAmount + ")");
-
-        Thread[] workers = new Thread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            workers[i] = new Thread(
-                    new AccountWorker(concurrentAccount, depositsPerThread, depositAmount),
-                    "Worker-Thread-" + (i + 1)
-            );
-            System.out.println("Main: Created thread [" + workers[i].getName() + "] in NEW state.");
-        }
-
-        System.out.println("\nMain: Starting all worker threads...");
-        for (Thread worker : workers) {
-            worker.start();
-        }
-
-        System.out.println("Main: Waiting for threads to finish with join()...");
-        for (Thread worker : workers) {
-            try {
-                worker.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                System.err.println("Thread interrupted: " + e.getMessage());
+        for (int i = 1; i <= 8; i++) {
+            final int taskId = i;
+            if (taskId % 2 == 0) {
+                processor.submit(() -> {
+                    try {
+                        poolAccount.deposit(500);
+                        System.out.println("[PoolTask-" + taskId + "] Deposited ₹500. Current: ₹" + poolAccount.getBalance());
+                    } catch (InvalidAmountException e) {
+                        System.err.println("Deposit error: " + e.getMessage());
+                    }
+                });
+            } else {
+                processor.submit(() -> {
+                    try {
+                        poolAccount.withdraw(200);
+                        System.out.println("[PoolTask-" + taskId + "] Withdrew ₹200. Current: ₹" + poolAccount.getBalance());
+                    } catch (BankException e) {
+                        System.err.println("Withdraw error: " + e.getMessage());
+                    }
+                });
             }
         }
 
-        System.out.println("Main: All worker threads completed.");
-        System.out.println("Actual Final Balance           : ₹" + concurrentAccount.getBalance());
-        if (concurrentAccount.getBalance() == expectedBalance) {
-            System.out.println("Result: SUCCESS - Thread-safe synchronization prevented race conditions!");
-        } else {
-            System.out.println("Result: RACE CONDITION DETECTED! Balance mismatch.");
+        System.out.println("Shutting down TransactionProcessor and awaiting termination...");
+        processor.stop();
+        System.out.println("All batch tasks completed! Final Pool Account Balance: ₹" + poolAccount.getBalance());
+
+        System.out.println("\n=== PRODUCER-CONSUMER TRANSACTION BUFFER (WAIT/NOTIFY) ===");
+        // Requirement 3: One thread produces transactions to a shared array buffer, another thread consumes
+        TransactionBuffer buffer = new TransactionBuffer(3);
+
+        Thread producerThread = new Thread(() -> {
+            String[] transactions = {"TXN-01 (Deposit ₹500)", "TXN-02 (Withdraw ₹200)", "TXN-03 (Transfer ₹100)", "TXN-04 (Deposit ₹1000)", "TXN-05 (Withdraw ₹300)"};
+            for (String txn : transactions) {
+                try {
+                    buffer.produce(txn);
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "TxnProducer");
+
+        Thread consumerThread = new Thread(() -> {
+            for (int i = 0; i < 5; i++) {
+                try {
+                    buffer.consume();
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "TxnConsumer");
+
+        producerThread.start();
+        consumerThread.start();
+
+        try {
+            producerThread.join();
+            consumerThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
+        System.out.println("Producer-Consumer coordination completed successfully.");
+
+        System.out.println("\n=== DEADLOCK AVOIDANCE (CONSISTENT LOCK ORDERING) ===");
+        // Requirement 4: Concurrent transfers A->B and B->A with lock ordering by smaller accountNumber first
+        Account accountA = new SavingsAccount("Alice", 10000, 1000);
+        Account accountB = new SavingsAccount("Bob", 10000, 1000);
+
+        System.out.println("Account A (" + accountA.getAccountNumber() + ") Initial: ₹" + accountA.getBalance());
+        System.out.println("Account B (" + accountB.getAccountNumber() + ") Initial: ₹" + accountB.getBalance());
+
+        Thread transferAtoB = new Thread(() -> {
+            for (int i = 0; i < 20; i++) {
+                try {
+                    accountA.transfer(accountB, 50);
+                } catch (BankException e) {
+                    System.err.println("Transfer A->B error: " + e.getMessage());
+                }
+            }
+            System.out.println("[Thread A->B] Completed all 20 transfers.");
+        }, "Transfer-A-to-B");
+
+        Thread transferBtoA = new Thread(() -> {
+            for (int i = 0; i < 20; i++) {
+                try {
+                    accountB.transfer(accountA, 50);
+                } catch (BankException e) {
+                    System.err.println("Transfer B->A error: " + e.getMessage());
+                }
+            }
+            System.out.println("[Thread B->A] Completed all 20 transfers.");
+        }, "Transfer-B-to-A");
+
+        transferAtoB.start();
+        transferBtoA.start();
+
+        try {
+            transferAtoB.join();
+            transferBtoA.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        System.out.println("Deadlock Avoidance Test: Both concurrent transfer threads completed without deadlocks!");
+        System.out.println("Account A Final Balance: ₹" + accountA.getBalance());
+        System.out.println("Account B Final Balance: ₹" + accountB.getBalance());
 
         System.out.println("\n=== GENERATING STATEMENT (STATIC IMPORT) ===");
         System.out.println(buildStatement(accounts[0]));

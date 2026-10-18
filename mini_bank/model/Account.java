@@ -69,6 +69,7 @@ public abstract class Account implements Transactable, InterestBearing {
         return amount > balance ? amount - balance : 0;
     }
 
+    // Deadlock-free transfer using consistent lock ordering (smaller accountNumber locked first)
     public void transfer(Account to, long amount) throws BankException {
         if (to == null) {
             throw new AccountNotFoundException("Transfer failed: destination account not found.");
@@ -77,22 +78,28 @@ public abstract class Account implements Transactable, InterestBearing {
             throw new BankException("Transfer failed: cannot transfer to the same account.");
         }
 
-        boolean debited = false;
-        try {
-            this.withdraw(amount);
-            debited = true;
-            to.deposit(amount);
-        } catch (BankException e) {
-            if (debited) {
+        // Lock ordering prevents deadlock between concurrent transfers (A->B and B->A)
+        Account firstLock = this.accountNumber.compareTo(to.accountNumber) < 0 ? this : to;
+        Account secondLock = (firstLock == this) ? to : this;
+
+        synchronized (firstLock) {
+            synchronized (secondLock) {
+                boolean debited = false;
                 try {
-                    this.deposit(amount); // Rollback debit
-                } catch (InvalidAmountException rollbackEx) {
-                    // Suppressed rollback exception
+                    this.withdraw(amount);
+                    debited = true;
+                    to.deposit(amount);
+                } catch (BankException e) {
+                    if (debited) {
+                        try {
+                            this.deposit(amount); // Rollback debit
+                        } catch (InvalidAmountException rollbackEx) {
+                            // Suppressed rollback exception
+                        }
+                    }
+                    throw e; // re-throw BankException
                 }
             }
-            throw e; // re-throw BankException
-        } finally {
-            // Transaction cleanup / completion hook
         }
     }
 
