@@ -1,5 +1,7 @@
 package project.mini_bank.service;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import project.mini_bank.exception.AccountNotFoundException;
 import project.mini_bank.exception.BankException;
 import project.mini_bank.exception.InsufficientFundsException;
@@ -10,6 +12,9 @@ import project.mini_bank.model.FixedDepositAccount;
 import project.mini_bank.model.Premium;
 import project.mini_bank.model.SavingsAccount;
 import project.mini_bank.util.AnnotationValidator;
+import project.mini_bank.util.ReportGenerator;
+import project.mini_bank.util.StatePersister;
+import project.mini_bank.util.TransactionLog;
 import project.mini_bank.util.TransactionSession;
 
 import static project.mini_bank.util.StatementFormatter.buildStatement;
@@ -140,7 +145,6 @@ public class MiniBank {
         }
 
         System.out.println("\n=== BATCH TRANSACTION PROCESSING (THREAD POOL) ===");
-        // Requirement 1 & 2: Process batch of transactions with TransactionProcessor (FixedThreadPool(4))
         TransactionProcessor processor = new TransactionProcessor();
         Account poolAccount = new SavingsAccount("Pool User", 5000, 1000);
         System.out.println("Pool Account Initial Balance: ₹" + poolAccount.getBalance());
@@ -173,7 +177,6 @@ public class MiniBank {
         System.out.println("All batch tasks completed! Final Pool Account Balance: ₹" + poolAccount.getBalance());
 
         System.out.println("\n=== PRODUCER-CONSUMER TRANSACTION BUFFER (WAIT/NOTIFY) ===");
-        // Requirement 3: One thread produces transactions to a shared array buffer, another thread consumes
         TransactionBuffer buffer = new TransactionBuffer(3);
 
         Thread producerThread = new Thread(() -> {
@@ -181,7 +184,7 @@ public class MiniBank {
             for (String txn : transactions) {
                 try {
                     buffer.produce(txn);
-                    Thread.sleep(100);
+                    Thread.sleep(80);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -192,7 +195,7 @@ public class MiniBank {
             for (int i = 0; i < 5; i++) {
                 try {
                     buffer.consume();
-                    Thread.sleep(150);
+                    Thread.sleep(120);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
@@ -211,12 +214,8 @@ public class MiniBank {
         System.out.println("Producer-Consumer coordination completed successfully.");
 
         System.out.println("\n=== DEADLOCK AVOIDANCE (CONSISTENT LOCK ORDERING) ===");
-        // Requirement 4: Concurrent transfers A->B and B->A with lock ordering by smaller accountNumber first
         Account accountA = new SavingsAccount("Alice", 10000, 1000);
         Account accountB = new SavingsAccount("Bob", 10000, 1000);
-
-        System.out.println("Account A (" + accountA.getAccountNumber() + ") Initial: ₹" + accountA.getBalance());
-        System.out.println("Account B (" + accountB.getAccountNumber() + ") Initial: ₹" + accountB.getBalance());
 
         Thread transferAtoB = new Thread(() -> {
             for (int i = 0; i < 20; i++) {
@@ -249,10 +248,45 @@ public class MiniBank {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-
         System.out.println("Deadlock Avoidance Test: Both concurrent transfer threads completed without deadlocks!");
-        System.out.println("Account A Final Balance: ₹" + accountA.getBalance());
-        System.out.println("Account B Final Balance: ₹" + accountB.getBalance());
+
+        System.out.println("\n=== PERSISTENCE & REPORTING (SERIALIZATION & NIO) ===");
+        Path dataDir = Paths.get("data");
+        Path stateFile = dataDir.resolve("accounts.ser");
+        Path logsDir = dataDir.resolve("logs");
+        Path logFile = logsDir.resolve("transactions_day1.log");
+        Path reportFile = dataDir.resolve("reports").resolve("summary_report.txt");
+
+        try {
+            // 1. Save state
+            System.out.println("Saving accounts state to " + stateFile + "...");
+            StatePersister.save(accounts, stateFile);
+            System.out.println("Accounts successfully saved.");
+
+            // 2. Reload state
+            System.out.println("Reloading accounts from " + stateFile + "...");
+            Account[] reloadedAccounts = StatePersister.load(stateFile);
+            System.out.println("Confirming reloaded accounts data survived serialization:");
+            for (Account acc : reloadedAccounts) {
+                System.out.println(" [Loaded] " + acc);
+            }
+
+            // 3. Write transaction log entries
+            System.out.println("\nWriting transaction logs via TransactionLog (Files.write CREATE + APPEND)...");
+            TransactionLog.append(logFile, "DEPOSIT AC0001 2500");
+            TransactionLog.append(logFile, "WITHDRAW AC0001 1000");
+            TransactionLog.append(logFile, "DEPOSIT AC0002 5000");
+            TransactionLog.append(logFile, "WITHDRAW AC0002 1500");
+            TransactionLog.append(logFile, "DEPOSIT AC0003 3000");
+
+            // 4. Generate & print report
+            System.out.println("Generating End-of-Day Report from " + logsDir + " to " + reportFile + "...");
+            String report = ReportGenerator.generate(logsDir, reportFile);
+            System.out.println("\n" + report);
+
+        } catch (Exception e) {
+            System.err.println("Persistence/Reporting error: " + e.getMessage());
+        }
 
         System.out.println("\n=== GENERATING STATEMENT (STATIC IMPORT) ===");
         System.out.println(buildStatement(accounts[0]));
