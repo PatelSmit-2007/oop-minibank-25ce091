@@ -9,7 +9,7 @@ import project.mini_bank.model.annotation.Id;
 import project.mini_bank.model.annotation.MaxLength;
 import project.mini_bank.model.annotation.Positive;
 
-public abstract class Account implements Transactable, InterestBearing, Serializable {
+public abstract class Account implements Transactable, InterestBearing, Serializable, Comparable<Account> {
 
     private static final long serialVersionUID = 1L;
 
@@ -104,6 +104,15 @@ public abstract class Account implements Transactable, InterestBearing, Serializ
                 }
             }
         }
+    }
+
+    // Requirement 4: Compare accounts by accountNumber
+    @Override
+    public int compareTo(Account other) {
+        if (other == null) {
+            return 1;
+        }
+        return this.accountNumber.compareTo(other.accountNumber);
     }
 
     // Abstract methods: subclasses must implement these

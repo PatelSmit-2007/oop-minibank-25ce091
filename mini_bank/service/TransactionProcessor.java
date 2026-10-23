@@ -1,15 +1,34 @@
 package project.mini_bank.service;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import project.mini_bank.model.Account;
 
 public class TransactionProcessor {
 
     private final ExecutorService executor;
 
+    // Requirement 5: Thread-safe ConcurrentHashMap for shared accounts
+    private final ConcurrentHashMap<String, Account> sharedAccounts = new ConcurrentHashMap<>();
+
     public TransactionProcessor() {
         this.executor = Executors.newFixedThreadPool(4);
+    }
+
+    public void registerAccount(Account account) {
+        if (account != null) {
+            sharedAccounts.put(account.getAccountNumber(), account);
+        }
+    }
+
+    public Account getAccount(String accountNumber) {
+        return sharedAccounts.get(accountNumber);
+    }
+
+    public ConcurrentHashMap<String, Account> getSharedAccounts() {
+        return sharedAccounts;
     }
 
     public void submit(Runnable task) {

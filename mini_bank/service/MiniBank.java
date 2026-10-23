@@ -2,6 +2,8 @@ package project.mini_bank.service;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import project.mini_bank.exception.AccountNotFoundException;
 import project.mini_bank.exception.BankException;
 import project.mini_bank.exception.InsufficientFundsException;
@@ -144,9 +146,12 @@ public class MiniBank {
             System.err.println("Session error: " + e.getMessage());
         }
 
-        System.out.println("\n=== BATCH TRANSACTION PROCESSING (THREAD POOL) ===");
+        System.out.println("\n=== BATCH TRANSACTION PROCESSING (THREAD POOL WITH CONCURRENTHASHMAP) ===");
+        // Requirement 5: Use ConcurrentHashMap for shared accounts in TransactionProcessor
         TransactionProcessor processor = new TransactionProcessor();
         Account poolAccount = new SavingsAccount("Pool User", 5000, 1000);
+        processor.registerAccount(poolAccount);
+
         System.out.println("Pool Account Initial Balance: ₹" + poolAccount.getBalance());
 
         for (int i = 1; i <= 8; i++) {
@@ -154,8 +159,9 @@ public class MiniBank {
             if (taskId % 2 == 0) {
                 processor.submit(() -> {
                     try {
-                        poolAccount.deposit(500);
-                        System.out.println("[PoolTask-" + taskId + "] Deposited ₹500. Current: ₹" + poolAccount.getBalance());
+                        Account acc = processor.getAccount(poolAccount.getAccountNumber());
+                        acc.deposit(500);
+                        System.out.println("[PoolTask-" + taskId + "] Deposited ₹500. Current: ₹" + acc.getBalance());
                     } catch (InvalidAmountException e) {
                         System.err.println("Deposit error: " + e.getMessage());
                     }
@@ -163,8 +169,9 @@ public class MiniBank {
             } else {
                 processor.submit(() -> {
                     try {
-                        poolAccount.withdraw(200);
-                        System.out.println("[PoolTask-" + taskId + "] Withdrew ₹200. Current: ₹" + poolAccount.getBalance());
+                        Account acc = processor.getAccount(poolAccount.getAccountNumber());
+                        acc.withdraw(200);
+                        System.out.println("[PoolTask-" + taskId + "] Withdrew ₹200. Current: ₹" + acc.getBalance());
                     } catch (BankException e) {
                         System.err.println("Withdraw error: " + e.getMessage());
                     }
@@ -250,6 +257,35 @@ public class MiniBank {
         }
         System.out.println("Deadlock Avoidance Test: Both concurrent transfer threads completed without deadlocks!");
 
+        System.out.println("\n=== COLLECTIONS FRAMEWORK & ACCOUNT STORE (MILESTONE 2) ===");
+        // Requirement 1, 2, 3, 6: Store accounts in HashMap, track history in ArrayList, sort with Comparator
+        AccountStore store = new AccountStore();
+        store.add(new SavingsAccount("Smit", 5000, 1000));
+        store.add(new CurrentAccount("Rahul", 2000, 3000));
+        store.add(new FixedDepositAccount("Amit", 10000));
+        store.add(new SavingsAccount("Priya", 15000, 2000));
+        store.add(new CurrentAccount("Karan", 7500, 2500));
+
+        System.out.println("Accounts in AccountStore (Sorted by Balance with Comparator):");
+        ArrayList<Account> sortedByBalanceList = store.sortedByBalance();
+        for (Account acc : sortedByBalanceList) {
+            System.out.println(" - " + acc.getAccountNumber() + " | Owner: " + acc.getOwnerName()
+                    + " | Balance: ₹" + acc.getBalance());
+        }
+
+        System.out.println("\nNatural Ordering (Comparable<Account> compareTo by Account Number):");
+        ArrayList<Account> naturalSortedList = new ArrayList<>(store.getAll());
+        Collections.sort(naturalSortedList);
+        for (Account acc : naturalSortedList) {
+            System.out.println(" - " + acc.getAccountNumber() + " | Owner: " + acc.getOwnerName()
+                    + " | Balance: ₹" + acc.getBalance());
+        }
+
+        System.out.println("\nAccountStore Transaction History:");
+        for (String entry : store.getTransactionHistory()) {
+            System.out.println(" * " + entry);
+        }
+
         System.out.println("\n=== PERSISTENCE & REPORTING (SERIALIZATION & NIO) ===");
         Path dataDir = Paths.get("data");
         Path stateFile = dataDir.resolve("accounts.ser");
@@ -258,12 +294,10 @@ public class MiniBank {
         Path reportFile = dataDir.resolve("reports").resolve("summary_report.txt");
 
         try {
-            // 1. Save state
             System.out.println("Saving accounts state to " + stateFile + "...");
             StatePersister.save(accounts, stateFile);
             System.out.println("Accounts successfully saved.");
 
-            // 2. Reload state
             System.out.println("Reloading accounts from " + stateFile + "...");
             Account[] reloadedAccounts = StatePersister.load(stateFile);
             System.out.println("Confirming reloaded accounts data survived serialization:");
@@ -271,7 +305,6 @@ public class MiniBank {
                 System.out.println(" [Loaded] " + acc);
             }
 
-            // 3. Write transaction log entries
             System.out.println("\nWriting transaction logs via TransactionLog (Files.write CREATE + APPEND)...");
             TransactionLog.append(logFile, "DEPOSIT AC0001 2500");
             TransactionLog.append(logFile, "WITHDRAW AC0001 1000");
@@ -279,7 +312,6 @@ public class MiniBank {
             TransactionLog.append(logFile, "WITHDRAW AC0002 1500");
             TransactionLog.append(logFile, "DEPOSIT AC0003 3000");
 
-            // 4. Generate & print report
             System.out.println("Generating End-of-Day Report from " + logsDir + " to " + reportFile + "...");
             String report = ReportGenerator.generate(logsDir, reportFile);
             System.out.println("\n" + report);
