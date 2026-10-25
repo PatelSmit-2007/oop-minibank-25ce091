@@ -13,6 +13,7 @@ import project.mini_bank.model.CurrentAccount;
 import project.mini_bank.model.FixedDepositAccount;
 import project.mini_bank.model.Premium;
 import project.mini_bank.model.SavingsAccount;
+import project.mini_bank.repository.Repository;
 import project.mini_bank.util.AnnotationValidator;
 import project.mini_bank.util.ReportGenerator;
 import project.mini_bank.util.StatePersister;
@@ -147,7 +148,6 @@ public class MiniBank {
         }
 
         System.out.println("\n=== BATCH TRANSACTION PROCESSING (THREAD POOL WITH CONCURRENTHASHMAP) ===");
-        // Requirement 5: Use ConcurrentHashMap for shared accounts in TransactionProcessor
         TransactionProcessor processor = new TransactionProcessor();
         Account poolAccount = new SavingsAccount("Pool User", 5000, 1000);
         processor.registerAccount(poolAccount);
@@ -258,7 +258,6 @@ public class MiniBank {
         System.out.println("Deadlock Avoidance Test: Both concurrent transfer threads completed without deadlocks!");
 
         System.out.println("\n=== COLLECTIONS FRAMEWORK & ACCOUNT STORE (MILESTONE 2) ===");
-        // Requirement 1, 2, 3, 6: Store accounts in HashMap, track history in ArrayList, sort with Comparator
         AccountStore store = new AccountStore();
         store.add(new SavingsAccount("Smit", 5000, 1000));
         store.add(new CurrentAccount("Rahul", 2000, 3000));
@@ -285,6 +284,30 @@ public class MiniBank {
         for (String entry : store.getTransactionHistory()) {
             System.out.println(" * " + entry);
         }
+
+        System.out.println("\n=== GENERIC REPOSITORY & DATA ACCESS LAYER (PRACTICAL 13) ===");
+        // Requirement 1, 2, 3, 4, 5: Generic Repository<Account>, saveAll, findById, findAll, bounded generic average
+        Repository<Account> accountRepo = new Repository<>();
+        Account repoAcc1 = new SavingsAccount("Vikram", 12000, 1500);
+        Account repoAcc2 = new CurrentAccount("Anjali", 8500, 2000);
+        Account repoAcc3 = new FixedDepositAccount("Deepak", 25000);
+
+        accountRepo.saveAll(repoAcc1, repoAcc2, repoAcc3);
+        System.out.println("Saved 3 accounts to Repository using @SafeVarargs saveAll().");
+
+        String searchId = repoAcc1.getAccountNumber();
+        Account foundAccount = accountRepo.findById(searchId);
+        System.out.println("Fetched Account by ID via reflection-mapped @Id key [" + searchId + "]:");
+        System.out.println(" -> " + foundAccount);
+
+        System.out.println("\nAll Accounts in Repository (findAll):");
+        for (Account acc : accountRepo.findAll()) {
+            System.out.println(" - " + acc);
+        }
+
+        Double[] sampleBalances = {repoAcc1.getBalance() * 1.0, repoAcc2.getBalance() * 1.0, repoAcc3.getBalance() * 1.0};
+        double avgBal = Repository.average(sampleBalances);
+        System.out.println("\nAverage balance calculated via bounded generic method <N extends Number>: ₹" + avgBal);
 
         System.out.println("\n=== PERSISTENCE & REPORTING (SERIALIZATION & NIO) ===");
         Path dataDir = Paths.get("data");
